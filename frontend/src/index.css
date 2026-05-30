@@ -1,0 +1,218 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Color Palette - HSL values */
+  --bg-primary: 226 23% 11%;      /* Deep space slate */
+  --bg-secondary: 226 20% 15%;    /* Card/Sidebar panel slate */
+  --bg-glass: 226 25% 15% / 0.55; /* Transparent glass slate */
+  --border-color: 226 15% 25% / 0.4;
+  --border-glow: 260 85% 65% / 0.15;
+  
+  --primary: 260 85% 65%;        /* Neon Purple */
+  --primary-hover: 260 85% 72%;
+  --primary-glow: 260 85% 65% / 0.45;
+  
+  --secondary: 190 90% 50%;      /* Cyber Cyan */
+  --secondary-glow: 190 90% 50% / 0.35;
+  
+  --success: 142 70% 45%;        /* Emerald Green */
+  --warning: 38 92% 50%;         /* Amber Yellow */
+  --error: 350 89% 60%;          /* Neon Red */
+  
+  --text-primary: 0 0% 98%;      /* Off-white */
+  --text-secondary: 226 15% 80%; /* Light silver-grey */
+  --text-muted: 226 12% 60%;     /* Muted grey */
+  
+  /* Layout Constants */
+  --sidebar-width: 320px;
+  --header-height: 70px;
+  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --border-radius-lg: 16px;
+  --border-radius-md: 10px;
+  --border-radius-sm: 6px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: hsl(var(--bg-primary));
+  color: hsl(var(--text-primary));
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border-color));
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.3);
+}
+
+/* Grid & Layout Structure */
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  background-image: 
+    radial-gradient(at 0% 0%, hsl(var(--primary) / 0.08) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, hsl(var(--secondary) / 0.06) 0px, transparent 50%);
+}
+
+/* Glassmorphism utility */
+.glass-panel {
+  background: hsl(var(--bg-glass));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border-color));
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px hsl(var(--primary) / 0.2);
+  }
+  50% {
+    box-shadow: 0 0 25px hsl(var(--primary) / 0.45);
+  }
+}
+
+@keyframes pulseCaret {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Caret for streaming typing indicator */
+.typing-caret {
+  display: inline-block;
+  width: 8px;
+  height: 15px;
+  background-color: hsl(var(--secondary));
+  margin-left: 4px;
+  vertical-align: middle;
+  animation: pulseCaret 0.8s infinite;
+  border-radius: 1px;
+}
+
+/* Global Markdown overrides inside chat bubbles */
+.markdown-content {
+  line-height: 1.6;
+}
+
+.markdown-content p {
+  margin-bottom: 12px;
+}
+
+.markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-content h1, .markdown-content h2, .markdown-content h3 {
+  margin: 16px 0 8px 0;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+  color: hsl(var(--text-primary));
+}
+
+.markdown-content h1 { font-size: 1.4rem; }
+.markdown-content h2 { font-size: 1.2rem; }
+.markdown-content h3 { font-size: 1.05rem; }
+
+.markdown-content ul, .markdown-content ol {
+  margin-left: 20px;
+  margin-bottom: 12px;
+}
+
+.markdown-content li {
+  margin-bottom: 4px;
+}
+
+.markdown-content code {
+  background-color: hsl(var(--bg-primary) / 0.6);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9em;
+  color: hsl(var(--secondary));
+  border: 1px solid hsl(var(--border-color));
+}
+
+.markdown-content pre {
+  background-color: hsl(var(--bg-primary));
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 12px 0;
+  border: 1px solid hsl(var(--border-color));
+}
+
+.markdown-content pre code {
+  background-color: transparent;
+  padding: 0;
+  border: none;
+  color: hsl(var(--text-primary));
+  font-size: 0.85em;
+}
+
+/* Citations inline styles */
+.citation-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: hsl(var(--primary) / 0.15);
+  color: hsl(var(--primary-hover));
+  border: 1px solid hsl(var(--primary) / 0.3);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin: 0 3px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.citation-badge:hover {
+  background: hsl(var(--primary));
+  color: white;
+  box-shadow: 0 0 8px hsl(var(--primary-glow));
+}

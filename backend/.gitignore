@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime output
+logs/
+*.log
+dist/
+
+# Uploaded/generated local data
+documents/
+!documents/.gitkeep
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

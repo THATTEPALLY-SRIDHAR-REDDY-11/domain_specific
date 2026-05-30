@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Build output
+dist/
+frontend/dist/
+backend/dist/
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Logs and generated traces
+logs/
+backend/logs/
+*.log
+langsmith_run_*.json
+langsmith_command.json
+
+# Local databases, virtual environments, and generated data
+chromadb_data/
+chroma_venv/
+__pycache__/
+*.pyc
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
