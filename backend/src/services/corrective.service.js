@@ -83,13 +83,20 @@ Rules:
         return `[Source ${idx + 1}] ${chunk.document}`;
       }).join('\n\n');
 
-      const systemPrompt = `You are a strict answer verifier for a RAG system. Evaluate the draft answer and determine if it passes verification.
+      const systemPrompt = `You are a grounded answer verifier for a RAG system. Evaluate the draft answer against ONLY the provided context.
 
 Verification Criteria:
 1. RELEVANCE: Is the answer directly relevant to the query?
 2. EVIDENCE GROUNDING: Does every claim in the answer have supporting evidence from the context?
 3. HALLUCINATION CHECK: Are there any claims not supported by the context?
 4. CONSISTENCY: Is the answer consistent with itself and the context?
+5. COMPLETENESS: Does the answer include the relevant details that are actually present in the context?
+
+Important:
+- Do NOT require external evidence, peer-reviewed journals, medical guidelines, or sources that are not in the provided context.
+- Do NOT fail an answer just because the context is brief.
+- Do NOT require the answer to cite every source if some sources are irrelevant or repetitive.
+- If the answer is accurate, grounded, and covers the available relevant context, pass it.
 
 Return ONLY a JSON object with:
 - pass: boolean (true if all checks pass)
@@ -144,7 +151,7 @@ Return ONLY a JSON object with:
       const issuesText = issues.map((issue, idx) => `${idx + 1}. ${issue}`).join('\n');
       const suggestionsText = suggestions.map((sug, idx) => `${idx + 1}. ${sug}`).join('\n');
       
-      const systemPrompt = `You are an expert query refinement specialist. Your job is to reformulate a search query because the previous search failed to retrieve documents that could produce a verified answer.
+      const systemPrompt = `You are an expert query refinement specialist for a local document RAG system. Your job is to improve a search query only within the user's uploaded knowledge base.
       
 Your goal is to rewrite the search query specifically to retrieve context chunks that address the issues and suggestions raised by the verifier.
 
@@ -152,7 +159,9 @@ Rules:
 1. Output ONLY the refined search query.
 2. DO NOT add any greeting, quotes, preamble, or explanation.
 3. Incorporate conversational context and target the missing facts or evidence.
-4. Do NOT use web search operators (such as site:, filetype:, OR, AND, etc.), brackets, or quotes. The query must be plain text search keywords suitable for semantic similarity vector search and BM25 keyword matching.`;
+4. Do NOT use web search operators (such as site:, filetype:, OR, AND, etc.), brackets, or quotes. The query must be plain text search keywords suitable for semantic similarity vector search and BM25 keyword matching.
+5. Do NOT add external-source terms such as peer-reviewed journals, medical guidelines, evidence-based practices, clinical trials, or research unless the original user query explicitly asked for those terms.
+6. Preserve the original user's scope. If the user asks about ICU procedures, keep the query focused on ICU procedures, workflow, monitoring, staffing, patient care, and safety from the local documents.`;
 
       const userPrompt = `Previous Search Query: "${query}"
 
