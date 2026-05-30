@@ -4,7 +4,7 @@ import DocumentManager from './components/DocumentManager';
 import ChatWindow from './components/ChatWindow';
 import EvaluationDashboard from './components/EvaluationDashboard';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
+const API_BASE = (import.meta.env.VITE_API_BASE || 'http://localhost:5000/api').replace(/\/+$/, '');
 
 export default function App() {
   const [threads, setThreads] = useState(() => {
