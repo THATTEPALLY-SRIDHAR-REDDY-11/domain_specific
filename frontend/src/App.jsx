@@ -169,7 +169,16 @@ export default function App() {
       });
 
       if (!response.ok) {
-        throw new Error(`Server returned error: ${response.statusText}`);
+        let errorDetail = response.statusText || 'Unknown backend error';
+        try {
+          const errorBody = await response.clone().json();
+          errorDetail = errorBody.error || errorBody.message || JSON.stringify(errorBody);
+        } catch {
+          const errorText = await response.text().catch(() => '');
+          if (errorText) errorDetail = errorText;
+        }
+
+        throw new Error(`Server returned ${response.status}: ${errorDetail}`);
       }
 
       // Read SSE stream
