@@ -263,6 +263,56 @@ Additional Rules:
       throw error;
     }
   }
+
+  /**
+   * Classifies if the provided text is related to health, medicine, biology, healthcare, or clinical treatments.
+   */
+  async isHealthcareRelated(text) {
+    try {
+      const client = this.getClient();
+      // Extract a sample to be fast and cost-effective
+      const sampleText = text.substring(0, 5000);
+
+      const systemPrompt = `You are a medical healthcare validation assistant. Your sole job is to classify if the provided document text is related to health, medicine, biology, healthcare, clinical treatments, anatomy, pharmacology, wellness, diseases, or patient care.
+      
+If the text is related to any of the above health-related topics, return a JSON object with:
+{
+  "isHealthRelated": true,
+  "reason": "Brief explanation of why it is health-related"
+}
+
+If the text is completely unrelated to health/medicine/biology/healthcare (e.g., general software programming, financial reports, recipe guides, sports news, general marketing, music, etc.), return:
+{
+  "isHealthRelated": false,
+  "reason": "Brief explanation of why it is not health-related"
+}
+
+Return ONLY valid JSON. Do not include any markdown format (like \`\`\`json) in the response outside of the JSON itself.`;
+
+      const response = await this.withRetry(async () => {
+        return await client.chat.completions.create({
+          model: 'llama-3.1-8b-instant',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `Document text sample:\n\n${sampleText}\n\nClassification JSON:` }
+          ],
+          temperature: 0.0,
+          max_tokens: 200,
+          response_format: { type: "json_object" }
+        });
+      });
+
+      let content = response.choices[0]?.message?.content || '{}';
+      content = content.trim();
+      const result = JSON.parse(content);
+      logger.info(`Healthcare validation result: ${result.isHealthRelated ? 'VALID' : 'INVALID'} - Reason: ${result.reason}`);
+      return result;
+    } catch (error) {
+      logger.error(`Error in isHealthcareRelated classification: ${error.message}`);
+      // Safety fallback: allow upload but log it, so we don't completely lock out the system in case of Groq API transient errors
+      return { isHealthRelated: true, reason: 'Validation error fallback: ' + error.message };
+    }
+  }
 }
 
 const groqService = new GroqService();

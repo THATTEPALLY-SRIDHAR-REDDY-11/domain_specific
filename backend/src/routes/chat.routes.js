@@ -10,14 +10,21 @@ import ingestService from '../services/ingest.service.js';
 import chromaService from '../services/chroma.service.js';
 import correctiveRAGService from '../services/corrective.service.js';
 import evaluationService from '../services/evaluation.service.js';
+import pdfParse from 'pdf-parse';
 
 
 const router = express.Router();
 
 // Multer configuration for file uploads
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, path.resolve('documents'));
+  destination: async function (req, file, cb) {
+    const tempDir = path.resolve('documents', 'temp');
+    try {
+      await fs.mkdir(tempDir, { recursive: true });
+    } catch (e) {
+      // Ignore if directory already exists
+    }
+    cb(null, tempDir);
   },
   filename: function (req, file, cb) {
     // Keep original filename but sanitise it slightly
@@ -64,7 +71,7 @@ router.post('/chat/stream', async (req, res) => {
   const lowerMessage = message.toLowerCase().trim();
   
   if (simpleGreetings.some(greeting => lowerMessage.includes(greeting)) && (!history || history.length === 0)) {
-    const greetingResponse = "Hello! I'm your Corrective RAG assistant. Feel free to ask me anything about your documents!";
+    const greetingResponse = "Hello! I'm your Medical Healthcare RAG assistant. Feel free to ask me anything about your documents!";
     
     for (const char of greetingResponse) {
       res.write(`data: ${JSON.stringify({ type: 'token', token: char })}\n\n`);
@@ -236,23 +243,76 @@ router.post('/documents/upload', (req, res) => {
     }
 
     const fileName = req.file.filename;
-    logger.info(`Dynamic file upload completed: ${fileName}`);
+    logger.info(`Dynamic file upload completed in temp: ${fileName}`);
+
+    const ext = path.extname(fileName).toLowerCase();
+    let text = '';
 
     try {
-      // Direct call to ingest to ensure fast response, chokidar watcher is ignored for this specific trigger
-      await ingestService.ingestFile(req.file.path, fileName);
+      // 1. Extract text from the temporary file to validate
+      if (ext === '.txt' || ext === '.md') {
+        text = await fs.readFile(req.file.path, 'utf-8');
+      } else if (ext === '.json') {
+        const raw = await fs.readFile(req.file.path, 'utf-8');
+        const obj = JSON.parse(raw);
+        text = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+      } else if (ext === '.pdf') {
+        const dataBuffer = await fs.readFile(req.file.path);
+        const pdfData = await pdfParse(dataBuffer);
+        text = pdfData.text;
+      } else {
+        await fs.unlink(req.file.path).catch(() => {});
+        return res.status(400).json({ error: `Unsupported file type: ${ext}` });
+      }
+
+      if (!text || text.trim().length === 0) {
+        await fs.unlink(req.file.path).catch(() => {});
+        return res.status(400).json({ error: 'Uploaded file is empty.' });
+      }
+
+      // 2. Validate using Groq LLM if the document is health/healthcare/medical related
+      logger.info(`Validating if uploaded document '${fileName}' is health-related...`);
+      const validation = await groqService.isHealthcareRelated(text);
+
+      if (!validation.isHealthRelated) {
+        logger.warn(`Document rejected. File: '${fileName}' is NOT healthcare related. Reason: ${validation.reason}`);
+        await fs.unlink(req.file.path).catch(() => {});
+        return res.status(400).json({
+          error: `Document rejected: Only health or healthcare-related documents are accepted. (Reason: ${validation.reason})`
+        });
+      }
+
+      logger.info(`Document validated successfully. File: '${fileName}' is health-related.`);
+
+      // 3. Move file from temp to final documents directory
+      const finalDir = path.resolve('documents');
+      const finalPath = path.join(finalDir, fileName);
+
+      // Ensure final directory exists
+      await fs.mkdir(finalDir, { recursive: true });
+
+      // Move the file
+      await fs.rename(req.file.path, finalPath);
+
+      // 4. Ingest and index the final file
+      await ingestService.ingestFile(finalPath, fileName);
+
       res.json({
         success: true,
-        message: `File '${fileName}' uploaded and indexed successfully.`,
+        message: `Healthcare document '${fileName}' uploaded and indexed successfully.`,
         document: {
           fileName: fileName,
-          fileType: path.extname(fileName),
+          fileType: ext,
           status: 'indexed'
         }
       });
-    } catch (ingestError) {
-      logger.error(`Ingest error for uploaded file: ${ingestError.message}`);
-      res.status(500).json({ error: `Upload succeeded but indexing failed: ${ingestError.message}` });
+    } catch (error) {
+      logger.error(`Error validating or ingesting file '${fileName}': ${error.message}`, error);
+      // Clean up the temp file if it still exists
+      if (req.file && req.file.path) {
+        await fs.unlink(req.file.path).catch(() => {});
+      }
+      res.status(500).json({ error: `Failed to process document: ${error.message}` });
     }
   });
 });

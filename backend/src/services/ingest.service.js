@@ -156,7 +156,11 @@ class IngestService {
 
     logger.info(`Starting file watcher on ${this.documentsDir}...`);
     this.watcher = chokidar.watch(this.documentsDir, {
-      ignored: /(^|[\/\\])\../, // ignore dotfiles
+      ignored: [
+        /(^|[\/\\])\../, // ignore dotfiles
+        /[\/\\]temp[\/\\]/, // ignore temp subdirectory
+        /temp$/ // ignore temp directory itself
+      ],
       persistent: true,
       ignoreInitial: true // ignore initial files as we ingestAll on startup
     });

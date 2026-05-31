@@ -78,12 +78,12 @@ export default function Sidebar({
             fontWeight: 700, 
             fontFamily: 'Outfit', 
             letterSpacing: '0.5px' 
-          }}>Corrective RAG</h1>
+          }}>Medical Healthcare RAG</h1>
           <span style={{ 
             fontSize: '0.75rem', 
             color: 'hsl(var(--secondary))',
             fontWeight: 600
-          }}>CRAG ENGINE</span>
+          }}>MEDICAL HEALTHCARE ENGINE</span>
         </div>
       </div>
 

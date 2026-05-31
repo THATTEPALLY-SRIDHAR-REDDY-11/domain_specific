@@ -218,7 +218,7 @@ export default function ChatWindow({
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 marginBottom: '10px'
-              }}>Welcome to Antigravity RAG</h1>
+              }}>Welcome to Medical Healthcare RAG</h1>
               <p style={{
                 color: 'hsl(var(--text-secondary))',
                 fontSize: '0.95rem',
@@ -657,7 +657,7 @@ export default function ChatWindow({
           color: 'hsl(var(--text-muted))',
           marginTop: '8px'
         }}>
-          Antigravity RAG. Using hybrid RRF search + Llama 3.3.
+          Medical Healthcare RAG. Using hybrid RRF search + Llama 3.3.
         </div>
       </footer>
 
