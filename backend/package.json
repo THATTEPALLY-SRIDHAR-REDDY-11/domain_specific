@@ -6,8 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js",
-    "postinstall": "pip3 install langsmith --user || pip install langsmith --user"
+    "dev": "nodemon server.js"
   },
   "keywords": [
     "rag",

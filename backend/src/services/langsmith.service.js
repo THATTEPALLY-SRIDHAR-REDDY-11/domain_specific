@@ -1,12 +1,7 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
+import axios from 'axios';
 
 class LangSmithService {
-  constructor() {
-    // Don't read env vars in constructor - they might not be loaded yet
-  }
+  constructor() {}
 
   get enabled() {
     return process.env.LANGSMITH_TRACING === 'true';
@@ -16,130 +11,113 @@ class LangSmithService {
     return process.env.LANGSMITH_PROJECT || 'default';
   }
 
-  async callPythonScript(action, data, runId = null) {
-    const command = {
-      action,
-      data,
-      run_id: runId
-    };
-
-    try {
-      // Write command to file
-      const fs = await import('fs');
-      const commandPath = process.cwd() + '/../langsmith_command.json';
-      fs.writeFileSync(commandPath, JSON.stringify(command));
-
-      // Use absolute path to script in parent directory
-      const scriptPath = process.cwd().replace(/\\/g, '/') + '/../langsmith_tracer.py';
-      
-      // Determine the platform-appropriate Python command (Windows vs. Linux/Mac)
-      let pythonExecutable = 'python3';
-      const isWindows = process.platform === 'win32';
-      
-      if (isWindows) {
-        const venvPythonWin = process.cwd().replace(/\\/g, '/') + '/../chroma_venv/Scripts/python.exe';
-        if (fs.existsSync(venvPythonWin)) {
-          pythonExecutable = `"${venvPythonWin}"`;
-        } else {
-          pythonExecutable = 'python';
-        }
-      } else {
-        const venvPythonLinux = process.cwd().replace(/\\/g, '/') + '/../chroma_venv/bin/python';
-        if (fs.existsSync(venvPythonLinux)) {
-          pythonExecutable = `"${venvPythonLinux}"`;
-        } else {
-          pythonExecutable = 'python3';
-        }
-      }
-      
-      const pythonCmd = `${pythonExecutable} "${scriptPath}"`;
-      
-      // Read env vars directly to ensure they're loaded
-      const apiKey = process.env.LANGSMITH_API_KEY;
-      const endpoint = process.env.LANGSMITH_ENDPOINT || 'https://api.smith.langchain.com';
-      const projectName = process.env.LANGSMITH_PROJECT || 'default';
-      
-      console.log('Passing to Python script:', { apiKey: apiKey ? '***' + apiKey.slice(-4) : 'missing', endpoint, projectName });
-      
-      const { stdout, stderr } = await execAsync(
-        pythonCmd,
-        {
-          cwd: process.cwd().replace(/\\/g, '/').replace('/backend', ''),
-          env: {
-            ...process.env,
-            LANGSMITH_TRACING: 'true',
-            LANGSMITH_API_KEY: apiKey,
-            LANGSMITH_ENDPOINT: endpoint,
-            LANGSMITH_PROJECT: projectName
-          }
-        }
-      );
-      
-      if (stderr) {
-        console.error('Python script stderr:', stderr);
-      }
-      
-      console.log('Python script stdout:', stdout);
-      return JSON.parse(stdout);
-    } catch (error) {
-      console.error('Failed to call Python script:', error.message);
-      return { error: error.message };
-    }
+  get apiKey() {
+    return process.env.LANGSMITH_API_KEY;
   }
 
+  get endpoint() {
+    return process.env.LANGSMITH_ENDPOINT || 'https://api.smith.langchain.com';
+  }
+
+  /**
+   * Create a trace run on LangSmith via REST API
+   */
   async createRun(runData) {
     if (!this.enabled) {
       console.log('LangSmith tracing is disabled');
       return null;
     }
 
+    const apiKey = this.apiKey;
+    if (!apiKey) {
+      console.error('LangSmith API key is missing');
+      return null;
+    }
+
     console.log('Creating LangSmith run:', runData.name);
     console.log('Project name:', this.projectName);
 
-    const result = await this.callPythonScript('create_run', runData);
-    
-    if (result.error) {
-      console.error('Failed to create LangSmith run:', result.error);
+    try {
+      const url = `${this.endpoint}/runs`;
+      const payload = {
+        id: runData.id,
+        name: runData.name,
+        run_type: runData.run_type || 'chain',
+        inputs: runData.inputs || {},
+        start_time: runData.start_time || new Date().toISOString(),
+        session_name: this.projectName
+      };
+
+      await axios.post(url, payload, {
+        headers: {
+          'x-api-key': apiKey,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('LangSmith run created successfully via REST API:', runData.id);
+      return { success: true, run_id: runData.id };
+    } catch (error) {
+      const errDetail = error.response ? JSON.stringify(error.response.data) : error.message;
+      console.error('Failed to create LangSmith run via REST API:', errDetail);
       return null;
     }
-    
-    console.log('LangSmith run created successfully:', result.run_id);
-    return result;
   }
 
+  /**
+   * Update an existing trace run on LangSmith via REST API
+   */
   async updateRun(runId, updateData) {
     if (!this.enabled) return null;
 
-    console.log('Updating LangSmith run:', runId);
-    console.log('Update data:', JSON.stringify(updateData, null, 2));
-
-    const result = await this.callPythonScript('update_run', updateData, runId);
-    
-    if (result.error) {
-      console.error('Failed to update LangSmith run:', result.error);
+    const apiKey = this.apiKey;
+    if (!apiKey) {
+      console.error('LangSmith API key is missing');
       return null;
     }
-    
-    console.log('LangSmith run updated successfully');
-    return result;
+
+    console.log('Updating LangSmith run:', runId);
+
+    try {
+      const url = `${this.endpoint}/runs/${runId}`;
+      const payload = {
+        outputs: updateData.outputs || {},
+        end_time: updateData.end_time || new Date().toISOString(),
+        status: updateData.status || 'success',
+        error: updateData.error || null
+      };
+
+      await axios.patch(url, payload, {
+        headers: {
+          'x-api-key': apiKey,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('LangSmith run updated successfully via REST API:', runId);
+      return { success: true };
+    } catch (error) {
+      const errDetail = error.response ? JSON.stringify(error.response.data) : error.message;
+      console.error('Failed to update LangSmith run via REST API:', errDetail);
+      return null;
+    }
   }
 
+  /**
+   * Express middleware to capture API calls and trace them to LangSmith
+   */
   createTraceMiddleware() {
     return async (req, res, next) => {
-      console.log('LangSmith middleware called for:', req.method, req.path);
-      console.log('LangSmith enabled:', this.enabled);
-      
       if (!this.enabled) {
-        console.log('LangSmith tracing is disabled, skipping');
         return next();
       }
 
       const startTime = Date.now();
-      // Generate a UUID-like ID (32 hex chars)
+      // Generate a UUID-like 32-character hex ID (LangSmith accepts this format as a valid run ID)
       const runId = Array.from({length: 32}, () => Math.floor(Math.random() * 16).toString(16)).join('');
 
-      // Create initial run
-      const result = await this.createRun({
+      // Create initial run asynchronously to not block client requests
+      this.createRun({
         id: runId,
         name: `${req.method} ${req.path}`,
         run_type: 'chain',
@@ -150,24 +128,25 @@ class LangSmithService {
           body: req.body ? JSON.stringify(req.body).substring(0, 1000) : null,
         },
         start_time: new Date().toISOString(),
+      }).catch(err => {
+        console.error('Asynchronous LangSmith createRun error:', err.message);
       });
 
-      // Store the returned run ID for later updates (use the one from Python script)
-      req.langsmithRunId = result ? result.run_id : runId;
+      req.langsmithRunId = runId;
 
-      // Intercept res.json to capture response
+      // Intercept res.json to capture output response
       const originalJson = res.json;
       res.json = function(data) {
         res.locals.responseData = data;
         return originalJson.call(this, data);
       };
 
-      // Update run on response
-      res.on('finish', async () => {
+      // Update run status upon request finish
+      res.on('finish', () => {
         const endTime = Date.now();
         const duration = endTime - startTime;
 
-        await this.updateRun(runId, {
+        this.updateRun(runId, {
           outputs: {
             status: res.statusCode,
             response: res.locals.responseData ? JSON.stringify(res.locals.responseData).substring(0, 1000) : null,
@@ -177,6 +156,8 @@ class LangSmithService {
           execution_metadata: {
             duration_ms: duration,
           },
+        }).catch(err => {
+          console.error('Asynchronous LangSmith updateRun error:', err.message);
         });
       });
 
