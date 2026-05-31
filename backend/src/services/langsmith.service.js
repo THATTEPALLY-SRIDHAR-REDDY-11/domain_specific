@@ -31,9 +31,28 @@ class LangSmithService {
 
       // Use absolute path to script in parent directory
       const scriptPath = process.cwd().replace(/\\/g, '/') + '/../langsmith_tracer.py';
-      // Use virtual environment Python if it exists
-      const venvPython = process.cwd().replace(/\\/g, '/') + '/../chroma_venv/Scripts/python.exe';
-      const pythonCmd = `"${venvPython}" "${scriptPath}"`;
+      
+      // Determine the platform-appropriate Python command (Windows vs. Linux/Mac)
+      let pythonExecutable = 'python3';
+      const isWindows = process.platform === 'win32';
+      
+      if (isWindows) {
+        const venvPythonWin = process.cwd().replace(/\\/g, '/') + '/../chroma_venv/Scripts/python.exe';
+        if (fs.existsSync(venvPythonWin)) {
+          pythonExecutable = `"${venvPythonWin}"`;
+        } else {
+          pythonExecutable = 'python';
+        }
+      } else {
+        const venvPythonLinux = process.cwd().replace(/\\/g, '/') + '/../chroma_venv/bin/python';
+        if (fs.existsSync(venvPythonLinux)) {
+          pythonExecutable = `"${venvPythonLinux}"`;
+        } else {
+          pythonExecutable = 'python3';
+        }
+      }
+      
+      const pythonCmd = `${pythonExecutable} "${scriptPath}"`;
       
       // Read env vars directly to ensure they're loaded
       const apiKey = process.env.LANGSMITH_API_KEY;
