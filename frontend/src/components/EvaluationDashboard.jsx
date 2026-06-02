@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function EvaluationDashboard({ evaluation, running }) {
   return (
     <div className="evaluation-dashboard">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import DocumentManager from './components/DocumentManager';
 import ChatWindow from './components/ChatWindow';
@@ -52,7 +52,8 @@ export default function App() {
     if (documents.length > 0) {
       handleRunEvaluation();
     } else {
-      setEvaluation(null);
+      // Defer clearing evaluation to avoid synchronous setState inside effect
+      setTimeout(() => setEvaluation(null), 0);
     }
   }, [documents]);
 
@@ -71,11 +72,12 @@ export default function App() {
     if (threads.length === 0) {
       handleNewThread();
     } else if (!activeThreadId) {
-      setActiveThreadId(threads[0].id);
+      // Defer to avoid synchronous setState within effect
+      setTimeout(() => setActiveThreadId(threads[0].id), 0);
     }
   }, [threads, activeThreadId]);
 
-  const fetchDocuments = async () => {
+  async function fetchDocuments() {
     setLoadingDocs(true);
     try {
       const response = await fetch(`${API_BASE}/documents`);
@@ -88,9 +90,9 @@ export default function App() {
     } finally {
       setLoadingDocs(false);
     }
-  };
+  }
 
-  const handleNewThread = () => {
+  function handleNewThread() {
     const newThread = {
       id: `thread_${Date.now()}`,
       title: 'New Conversation',
@@ -98,7 +100,7 @@ export default function App() {
     };
     setThreads(prev => [newThread, ...prev]);
     setActiveThreadId(newThread.id);
-  };
+  }
 
   const handleDeleteThread = (threadId) => {
     setThreads(prev => prev.filter(t => t.id !== threadId));
@@ -349,7 +351,7 @@ export default function App() {
     }
   };
 
-  const handleRunEvaluation = async () => {
+  async function handleRunEvaluation() {
     setEvaluating(true);
     try {
       const response = await fetch(`${API_BASE}/evaluate`);
@@ -364,7 +366,7 @@ export default function App() {
     } finally {
       setEvaluating(false);
     }
-  };
+  }
 
   const activeThread = threads.find(t => t.id === activeThreadId) || { title: 'New Conversation', messages: [] };
 

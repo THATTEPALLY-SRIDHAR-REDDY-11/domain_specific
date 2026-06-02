@@ -20,6 +20,14 @@ class GroqService {
     try {
       return await fn();
     } catch (error) {
+      // Detect auth errors and fail fast (do NOT retry on invalid API key / 401)
+      const errMsg = error?.message || '';
+      const isAuthError = errMsg.includes('invalid_api_key') || errMsg.includes('Invalid API Key') || errMsg.includes('401') || error?.status === 401 || error?.code === 'invalid_api_key';
+      if (isAuthError) {
+        logger.error(`Auth error detected (no retries): ${errMsg}`);
+        throw error;
+      }
+
       if (retryCount < this.maxRetries) {
         logger.warn(`Retrying (${retryCount + 1}/${this.maxRetries}) after error: ${error.message}`);
         await this.delay(this.retryDelay * (retryCount + 1)); // Exponential backoff
@@ -44,6 +52,25 @@ class GroqService {
     return this.client;
   }
 
+  // Local deterministic summarizer fallback when Groq API is unavailable or invalid.
+  summarizeFromContext(contextChunks) {
+    if (!contextChunks || contextChunks.length === 0) {
+      return 'The requested information is not available in the provided healthcare knowledge base';
+    }
+
+    // Build a compact structured summary from available context chunks.
+    const parts = contextChunks.map((c, idx) => {
+      const titleMatch = (c.document || '').split('\n')[0] || `Source ${idx + 1}`;
+      // Take first few informative lines
+      const lines = (c.document || '').split('\n').slice(1, 8).map(l => l.trim()).filter(Boolean);
+      const snippet = lines.join(' ');
+      return `${titleMatch} — ${snippet}`;
+    });
+
+    const summary = `The requested information is available in the following documents: ${parts.join(' | ')}.`;
+    return summary;
+  }
+
   /**
    * Rewrites/optimizes user query based on conversation history to make it search-friendly.
    */
@@ -63,8 +90,13 @@ class GroqService {
    */
   async generateRAGStream(query, contextChunks, history = [], options = {}, onToken, onComplete, onError) {
     try {
-      const client = this.getClient();
+      let client = null;
       let model = options.model || this.defaultModel;
+      try {
+        client = this.getClient();
+      } catch (clientErr) {
+        logger.warn(`Groq client unavailable: ${clientErr.message}. Falling back to local summarizer.`);
+      }
       const temperature = options.temperature !== undefined ? Number(options.temperature) : 0;
 
       logger.info(`Generating streaming RAG response using model: ${model}, temp: ${temperature}`);
@@ -125,6 +157,16 @@ Additional Rules:
         content: query
       });
 
+      if (!client) {
+        // Local summarizer fallback: stream the deterministic summary
+        const fallback = this.summarizeFromContext(contextChunks);
+        // Send the fallback as a single token (or split by sentences if large)
+        onToken(fallback);
+        if (onComplete) onComplete(fallback);
+        logger.info('Returned local fallback summary due to unavailable Groq client.');
+        return;
+      }
+
       try {
         const stream = await this.withRetry(async () => {
           return await client.chat.completions.create({
@@ -150,7 +192,17 @@ Additional Rules:
           onComplete(completeResponse);
         }
       } catch (error) {
-        // If we hit rate limit or error, try falling back to smaller model
+        const errMsg = error?.message || '';
+        // If API key is invalid (401) or clearly an auth issue, fallback to local summarizer
+        if (errMsg.includes('invalid_api_key') || errMsg.includes('Invalid API Key') || errMsg.includes('401')) {
+          logger.warn(`Detected invalid Groq API key during streaming: ${errMsg}. Using local summarizer fallback.`);
+          const fallback = this.summarizeFromContext(contextChunks);
+          onToken(fallback);
+          if (onComplete) onComplete(fallback);
+          return;
+        }
+
+        // If we hit rate limit or other errors, try falling back to smaller model
         if (model !== 'llama-3.1-8b-instant') {
           logger.warn(`Falling back to smaller model due to error: ${error.message}`);
           model = 'llama-3.1-8b-instant';
@@ -196,18 +248,23 @@ Additional Rules:
    */
   async generateDraftAnswer(query, contextChunks, history = [], options = {}) {
     try {
-      const client = this.getClient();
+      let client = null;
       let model = options.model || this.defaultModel;
+      try {
+        client = this.getClient();
+      } catch (clientErr) {
+        logger.warn(`Groq client unavailable for draft answer: ${clientErr.message}. Using local summarizer fallback.`);
+      }
       const temperature = options.temperature !== undefined ? Number(options.temperature) : 0;
 
       logger.info(`Generating draft RAG response using model: ${model}, temp: ${temperature}`);
 
       const contextText = contextChunks.map((chunk, idx) => {
         return `[Source ${idx + 1}]
-File Name: ${chunk.metadata.source}
-Content: ${chunk.document}
-----------------------------------------`;
-      }).join('\n\n');
+      File Name: ${chunk.metadata.source}
+      Content: ${chunk.document}
+      ----------------------------------------`;
+            }).join('\n\n');
 
       const systemPrompt = `CRITICAL INSTRUCTIONS FOR HEALTHCARE RAG:
 1. YOUR ONLY JOB IS TO ANSWER USING EXACTLY THE INFORMATION IN THE "Context Documents" BELOW.
@@ -249,15 +306,29 @@ Additional Rules:
         content: query
       });
 
-      const response = await this.withRetry(async () => {
-        return await client.chat.completions.create({
-          model,
-          messages,
-          temperature
-        });
-      });
+      if (!client) {
+        // Local deterministic draft from context
+        return this.summarizeFromContext(contextChunks);
+      }
 
-      return response.choices[0]?.message?.content || '';
+      try {
+        const response = await this.withRetry(async () => {
+          return await client.chat.completions.create({
+            model,
+            messages,
+            temperature
+          });
+        });
+
+        return response.choices[0]?.message?.content || '';
+      } catch (error) {
+        const errMsg = error?.message || '';
+        if (errMsg.includes('invalid_api_key') || errMsg.includes('Invalid API Key') || errMsg.includes('401')) {
+          logger.warn(`Detected invalid Groq API key during draft generation: ${errMsg}. Using local summarizer fallback.`);
+          return this.summarizeFromContext(contextChunks);
+        }
+        throw error;
+      }
     } catch (error) {
       logger.error(`Error in generateDraftAnswer: ${error.message}`, error);
       throw error;

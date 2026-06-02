@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Send, 
   Bot, 
@@ -7,9 +7,7 @@ import {
   Search, 
   ChevronDown, 
   ChevronUp, 
-  FileSpreadsheet, 
-  ShieldAlert, 
-  Maximize2,
+  ShieldAlert,
   Terminal,
   Activity
 } from 'lucide-react';
@@ -63,7 +61,7 @@ export default function ChatWindow({
    * - Citations ([Source N])
    * - Bullet lists (- item)
    */
-  const renderMarkdown = (text, citations = []) => {
+  const renderMarkdown = (text) => {
     if (!text) return '';
     
     let html = text;
@@ -171,6 +169,16 @@ export default function ChatWindow({
           }}>
             <Search size={12} />
             <span>Scoped Search ({selectedFilters.length} Selected Docs)</span>
+          </div>
+        )}
+        {streamingOptimizedQuery && (
+          <div style={{ marginLeft: '12px', fontSize: '0.75rem', color: 'hsl(var(--text-muted))' }}>
+            Optimized Query: {streamingOptimizedQuery}
+          </div>
+        )}
+        {streamingCitations && streamingCitations.length > 0 && (
+          <div style={{ marginLeft: '12px', fontSize: '0.75rem', color: 'hsl(var(--text-muted))' }}>
+            Citations: {streamingCitations.length}
           </div>
         )}
       </header>

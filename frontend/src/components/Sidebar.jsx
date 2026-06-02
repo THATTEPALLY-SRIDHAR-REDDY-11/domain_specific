@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   MessageSquare, 
   Plus, 
@@ -7,7 +7,7 @@ import {
   Sliders, 
   Cpu, 
   Database, 
-  Info,
+  
   RefreshCw
 } from 'lucide-react';
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { 
   FileText, 
   Upload, 
@@ -14,7 +14,6 @@ import confetti from 'canvas-confetti';
 
 export default function DocumentManager({
   documents,
-  indexingLogs,
   onUploadFile,
   onDeleteDocument,
   selectedFilters,
